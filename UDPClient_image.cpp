@@ -28,6 +28,7 @@ int main(int argc, char *argv[]){
   unsigned int fromSize;             // recvfrom()のアドレスの入出力サイズ
   char *servIP;                      // サーバのIPアドレス
   int waitsec = 15.0;                // =15.0us=0.001ms
+  int num_of_tx = 7;
   
   //std::vector<unsigned char> i_imageBuffer;             // エコーサーバへ送信する画像データ
   char echoBuffer[ECHOMAX+1];   // エコー文字列の受信用バッファ
@@ -123,7 +124,7 @@ int main(int argc, char *argv[]){
   Show_Time(startTime_r, endTime_r, startTime_c, endTime_c);
   */
 
-  for(i=0;i<10;i++){
+  for(i=0;i<num_of_tx;i++){
     if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr,
 	      sizeof(echoServAddr)) != 1000)
 	DieWithError("sendto() sent a different number of bytes than expected");
@@ -141,7 +142,7 @@ int main(int argc, char *argv[]){
 
   fromSize = sizeof(fromAddr);
   //printf("%d\n",fromSize);
-  for(i=0;i<10;i++){
+  for(i=0;i<num_of_tx;i++){
     if((respStringLen = recvfrom(sock, echoBuffer+i*1000, 1000, 0,
 	     (struct sockaddr *)&fromAddr, &fromSize)) != 1000)
       DieWithError("recvfrom() failed");
