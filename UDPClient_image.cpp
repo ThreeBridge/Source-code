@@ -16,19 +16,21 @@
 
 /*---define---*/
 #define ECHOMAX 65000    // エコー文字列の最大値
+#define IMG_SIZE 20000   // 画像のサイズ
 
 void DieWithError(char *errorMessage);
 void Show_Time(struct timespec, struct timespec, struct timespec, struct timespec);
 
 int main(int argc, char *argv[]){
   int sock;                          // ソケット
-  struct sockaddr_in echoServAddr;   // エコーサーバのアドレス
+  struct sockaddr_in echoServAddr[2];   // エコーサーバのアドレス
   struct sockaddr_in fromAddr;       // エコー送信元のアドレス
   unsigned short echoServPort;       // エコーサーバのポート番号
   unsigned int fromSize;             // recvfrom()のアドレスの入出力サイズ
-  char *servIP;                      // サーバのIPアドレス
+  char *servIP0;                      // サーバのIPアドレス
+  char *servIP1;
   int waitsec = 15.0;                // =15.0us=0.001ms
-  int num_of_tx = 7;
+  int num_of_tx = 10;
   
   //std::vector<unsigned char> i_imageBuffer;             // エコーサーバへ送信する画像データ
   char echoBuffer[ECHOMAX+1];   // エコー文字列の受信用バッファ
@@ -42,17 +44,20 @@ int main(int argc, char *argv[]){
 
   //unsigned char *imageBuffer;
 
-  if((argc < 2)||(argc > 3)){
-    fprintf(stderr,"Usage: %s <Server IP> [<Echo Port>]\n",argv[0]);
+  if((argc < 3)||(argc > 4)){
+    fprintf(stderr,"Usage: %s <Server IP0> <Server IP1>  [<Echo Port>]\n",argv[0]);
     exit(1);
   }
   
-  servIP = argv[1];      // 1つ目の引数 : サーバのIPアドレス(ドット10進表記)
+  servIP0 = argv[1];      // 1つ目の引数 : サーバのIPアドレス(ドット10進表記)
+  servIP1 = argv[2];    // add 2018.12.5
+  printf("宛先IPアドレス0 : %s\n",servIP0);
+  printf("宛先IPアドレス1 : %s\n",servIP1);
   //2018.11.29(del(0))
   //printf("宛先IPアドレス : %s\n",argv[1]);
 
-  if(argc == 3)
-    echoServPort = atoi(argv[2]);  // 指定のポート番号があれば使用
+  if(argc == 4)
+    echoServPort = atoi(argv[3]);  // 指定のポート番号があれば使用
   else
     echoServPort = 7;  // 7はエコーサービスのwell-knownポート番号
   //del(0)
@@ -99,10 +104,18 @@ int main(int argc, char *argv[]){
     DieWithError("socket() failed");
 
   /*---サーバのアドレス構造体の作成---*/
-  memset(&echoServAddr, 0, sizeof(echoServAddr));
-  echoServAddr.sin_family = AF_INET;                // インターネットアドレスファミリ
-  echoServAddr.sin_addr.s_addr = inet_addr(servIP); // サーバのIPアドレス
-  echoServAddr.sin_port = htons(echoServPort);      // サーバのポート番号
+  //<---
+  // 複数のデバイスに送信する
+  //--->
+  memset(&echoServAddr[0], 0, sizeof(echoServAddr[0]));
+  echoServAddr[0].sin_family = AF_INET;                 // インターネットアドレスファミリ
+  echoServAddr[0].sin_addr.s_addr = inet_addr(servIP0); // サーバのIPアドレス
+  echoServAddr[0].sin_port = htons(echoServPort);       // サーバのポート番号
+
+  memset(&echoServAddr[1], 0, sizeof(echoServAddr[1]));
+  echoServAddr[1].sin_family = AF_INET;                 // インターネットアドレスファミリ
+  echoServAddr[1].sin_addr.s_addr = inet_addr(servIP1); // サーバのIPアドレス
+  echoServAddr[1].sin_port = htons(echoServPort);       // サーバのポート番号
 
   /*---画像データをサーバに送信---*/
   /*
@@ -123,10 +136,18 @@ int main(int argc, char *argv[]){
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endTime_c);
   Show_Time(startTime_r, endTime_r, startTime_c, endTime_c);
   */
-
+  
+  /*---1つ目---*/
   for(i=0;i<num_of_tx;i++){
-    if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr,
-	      sizeof(echoServAddr)) != 1000)
+    if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr[0],
+	      sizeof(echoServAddr[0])) != 1000)
+	DieWithError("sendto() sent a different number of bytes than expected");
+    usleep(waitsec);
+  }
+  /*---2つ目---*/
+  for(i=0;i<num_of_tx;i++){
+    if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr[1],
+	      sizeof(echoServAddr[1])) != 1000)
 	DieWithError("sendto() sent a different number of bytes than expected");
     usleep(waitsec);
   }
@@ -136,7 +157,7 @@ int main(int argc, char *argv[]){
 
   /*---応答を受信---*/
   
-  for(i=0;i<10000;i++){
+  for(i=0;i<IMG_SIZE;i++){
     echoBuffer[i] = 255;
   }
 
@@ -149,7 +170,7 @@ int main(int argc, char *argv[]){
     //del(0)
     //printf("%d回目\n",i+1);
   }
-  if(echoServAddr.sin_addr.s_addr != fromAddr.sin_addr.s_addr){
+  if(echoServAddr[0].sin_addr.s_addr != fromAddr.sin_addr.s_addr){
     fprintf(stderr,"Error : received a packet from unknown source.\n");
     exit(1);
   }
