@@ -12,7 +12,8 @@
 #include <vector>
 #include <opencv2/opencv.hpp>
 #include <unistd.h>      // usleep() <--2018.10.30
-#include <time.h>        // 
+#include <time.h>        //
+#include <pthread.h>
 
 /*---define---*/
 #define ECHOMAX 65000    // エコー文字列の最大値
@@ -20,22 +21,28 @@
 
 void DieWithError(char *errorMessage);
 void Show_Time(struct timespec, struct timespec, struct timespec, struct timespec);
+void* Recv(void* argc);
+
+/*---グローバル変数---*/
+int sock;
+struct sockaddr_in fromAddr;       // エコー送信元のアドレス
+char echoBuffer[ECHOMAX+1];   // エコー文字列の受信用バッファ
 
 int main(int argc, char *argv[]){
-  int sock;                          // ソケット
+  //int sock;                          // ソケット
   struct sockaddr_in echoServAddr[2];   // エコーサーバのアドレス
-  struct sockaddr_in fromAddr;       // エコー送信元のアドレス
+  
   unsigned short echoServPort;       // エコーサーバのポート番号
-  unsigned int fromSize;             // recvfrom()のアドレスの入出力サイズ
+  //unsigned int fromSize;             // recvfrom()のアドレスの入出力サイズ
   char *servIP0;                      // サーバのIPアドレス
   char *servIP1;
   int waitsec = 15.0;                // =15.0us=0.001ms
   int num_of_tx = 10;
   
   //std::vector<unsigned char> i_imageBuffer;             // エコーサーバへ送信する画像データ
-  char echoBuffer[ECHOMAX+1];   // エコー文字列の受信用バッファ
+  
   int echoStringLen;                 // 文字列の長さ
-  int respStringLen;                 // 受信した応答の長さ
+  //int respStringLen;                 // 受信した応答の長さ
   std::vector<int> param = std::vector<int>(2);
   int i,j;
   int high,width,datasize;
@@ -50,11 +57,9 @@ int main(int argc, char *argv[]){
   }
   
   servIP0 = argv[1];      // 1つ目の引数 : サーバのIPアドレス(ドット10進表記)
-  servIP1 = argv[2];    // add 2018.12.5
+  servIP1 = argv[2];      // add 2018.12.5
   printf("宛先IPアドレス0 : %s\n",servIP0);
   printf("宛先IPアドレス1 : %s\n",servIP1);
-  //2018.11.29(del(0))
-  //printf("宛先IPアドレス : %s\n",argv[1]);
 
   if(argc == 4)
     echoServPort = atoi(argv[3]);  // 指定のポート番号があれば使用
@@ -64,7 +69,7 @@ int main(int argc, char *argv[]){
   //printf("ポート番号     : %s\n",argv[2]);
 
   /*---画像の取り込み---*/
-  cv::Mat image = cv::imread("/home/tmitsuhashi/bin/opencv/kochi2.bmp",cv::IMREAD_GRAYSCALE);
+  cv::Mat image = cv::imread("/home/tmitsuhashi/bin/opencv/200x100.bmp",cv::IMREAD_GRAYSCALE);
   if(image.empty()){
     std::cout << "read error.\n";
     return -1;
@@ -128,15 +133,26 @@ int main(int argc, char *argv[]){
   }
   */
   /*---1000バイトずつ送る---*/
-  clock_gettime(CLOCK_MONOTONIC_RAW, &startTime_r);
-  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &startTime_c);
+
+  for(i=0;i<IMG_SIZE;i++){
+    echoBuffer[i] = 255;
+  }
+
+
   //usleep(1000);
   /*del(0)
   clock_gettime(CLOCK_MONOTONIC_RAW, &endTime_r);
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endTime_c);
   Show_Time(startTime_r, endTime_r, startTime_c, endTime_c);
   */
-  
+
+  /*---マルチスレッド化---*/
+  pthread_t thread;
+  pthread_create(&thread,NULL,Recv,(void *)NULL);
+
+  clock_gettime(CLOCK_MONOTONIC_RAW, &startTime_r);
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &startTime_c);
+
   /*---1つ目---*/
   for(i=0;i<num_of_tx;i++){
     if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr[0],
@@ -144,37 +160,48 @@ int main(int argc, char *argv[]){
 	DieWithError("sendto() sent a different number of bytes than expected");
     usleep(waitsec);
   }
-  /*---2つ目---*/
-  for(i=0;i<num_of_tx;i++){
-    if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr[1],
-	      sizeof(echoServAddr[1])) != 1000)
-	DieWithError("sendto() sent a different number of bytes than expected");
-    usleep(waitsec);
-  }
-  //free(imageBuffer);
 
-  //  printf("debug\n");
+  // add 2018.12.6
+  //fromSize = sizeof(fromAddr);
 
-  /*---応答を受信---*/
-  
-  for(i=0;i<IMG_SIZE;i++){
-    echoBuffer[i] = 255;
-  }
-
-  fromSize = sizeof(fromAddr);
-  //printf("%d\n",fromSize);
+  /*---1つ目の応答---*/
+  /*
   for(i=0;i<num_of_tx;i++){
     if((respStringLen = recvfrom(sock, echoBuffer+i*1000, 1000, 0,
 	     (struct sockaddr *)&fromAddr, &fromSize)) != 1000)
       DieWithError("recvfrom() failed");
-    //del(0)
-    //printf("%d回目\n",i+1);
   }
   if(echoServAddr[0].sin_addr.s_addr != fromAddr.sin_addr.s_addr){
     fprintf(stderr,"Error : received a packet from unknown source.\n");
     exit(1);
   }
-  //printf("debug\n");
+  */
+
+  /*---2つ目---*/
+  for(i=10;i<num_of_tx+10;i++){
+    if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr[1],
+	      sizeof(echoServAddr[1])) != 1000)
+	DieWithError("sendto() sent a different number of bytes than expected");
+    usleep(waitsec);
+  }
+
+  
+  /*---2つ目の応答---*/
+  /*
+  for(i=10;i<num_of_tx+10;i++){
+    if((respStringLen = recvfrom(sock, echoBuffer+i*1000, 1000, 0,
+	     (struct sockaddr *)&fromAddr, &fromSize)) != 1000)
+      DieWithError("recvfrom() failed");
+  }
+  */
+  /*
+  if(echoServAddr[1].sin_addr.s_addr != fromAddr.sin_addr.s_addr){
+    fprintf(stderr,"Error : received a packet from unknown source.\n");
+    exit(1);
+  }
+  */
+
+  pthread_join(thread,NULL);
 
   clock_gettime(CLOCK_MONOTONIC_RAW, &endTime_r);
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endTime_c);
@@ -188,18 +215,18 @@ int main(int argc, char *argv[]){
   
   /*--受信データの処理----*/
   cv::Mat recv_image;
-  recv_image.create(100,100,CV_8UC1);
+  recv_image.create(100,200,CV_8UC1);
   int count = 0;
   count = 0;
   for(j=0;j<100;j++){
-    for(i=0;i<100;i++){
+    for(i=0;i<200;i++){
       recv_image.data[count] = echoBuffer[count];
       count++;
     }
   }
   param[0]=cv::IMWRITE_PXM_BINARY;
   param[1]=1;
-  cv::imwrite("/home/tmitsuhashi/bin/opencv/recv_fpga.bmp",recv_image,param);
+  cv::imwrite("/home/tmitsuhashi/bin/opencv/recv_fpga_2.bmp",recv_image,param);
 
   close(sock);
   exit(0);
@@ -236,4 +263,19 @@ void Show_Time(struct timespec startTime_r, struct timespec endTime_r, struct ti
     printf("開始/終了(s) %10ld/%10ld\n",startTime_c.tv_sec,endTime_c.tv_sec);
     printf("開始/終了(ns) %.09ld/%.09ld\n",startTime_c.tv_nsec,endTime_c.tv_nsec);
     */
+}
+
+void* Recv(void* argc){
+  int respStringLen;
+  unsigned int fromSize;
+  int i;
+
+  fromSize = sizeof(fromAddr);
+
+  for(i=0;i<20;i++){
+    if((respStringLen = recvfrom(sock, echoBuffer+i*1000, 1000, 0,
+	     (struct sockaddr *)&fromAddr, &fromSize)) != 1000)
+      DieWithError("recvfrom() failed");
+  }
+
 }
