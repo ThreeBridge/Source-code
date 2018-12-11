@@ -16,8 +16,8 @@
 #include <pthread.h>
 
 /*---define---*/
-#define ECHOMAX 65000    // エコー文字列の最大値
-#define IMG_SIZE 20000   // 画像のサイズ
+#define ECHOMAX  524288    // エコー文字列の最大値
+#define IMG_SIZE 320000   // 画像のサイズ
 
 void DieWithError(char *errorMessage);
 void Show_Time(struct timespec, struct timespec, struct timespec, struct timespec);
@@ -37,7 +37,7 @@ int main(int argc, char *argv[]){
   char *servIP0;                      // サーバのIPアドレス
   char *servIP1;
   int waitsec = 15.0;                // =15.0us=0.001ms
-  int num_of_tx = 10;
+  int num_of_tx = 160;
   
   //std::vector<unsigned char> i_imageBuffer;             // エコーサーバへ送信する画像データ
   
@@ -69,7 +69,7 @@ int main(int argc, char *argv[]){
   //printf("ポート番号     : %s\n",argv[2]);
 
   /*---画像の取り込み---*/
-  cv::Mat image = cv::imread("/home/tmitsuhashi/bin/opencv/200x100.bmp",cv::IMREAD_GRAYSCALE);
+  cv::Mat image = cv::imread("/home/tmitsuhashi/bin/opencv/800x400.bmp",cv::IMREAD_GRAYSCALE);
   if(image.empty()){
     std::cout << "read error.\n";
     return -1;
@@ -178,13 +178,14 @@ int main(int argc, char *argv[]){
   */
 
   /*---2つ目---*/
-  for(i=10;i<num_of_tx+10;i++){
+  
+  for(i=160;i<num_of_tx+160;i++){
     if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr[1],
 	      sizeof(echoServAddr[1])) != 1000)
 	DieWithError("sendto() sent a different number of bytes than expected");
     usleep(waitsec);
   }
-
+  
   
   /*---2つ目の応答---*/
   /*
@@ -215,18 +216,18 @@ int main(int argc, char *argv[]){
   
   /*--受信データの処理----*/
   cv::Mat recv_image;
-  recv_image.create(100,200,CV_8UC1);
+  recv_image.create(400,800,CV_8UC1);
   int count = 0;
   count = 0;
-  for(j=0;j<100;j++){
-    for(i=0;i<200;i++){
+  for(j=0;j<400;j++){
+    for(i=0;i<800;i++){
       recv_image.data[count] = echoBuffer[count];
       count++;
     }
   }
   param[0]=cv::IMWRITE_PXM_BINARY;
   param[1]=1;
-  cv::imwrite("/home/tmitsuhashi/bin/opencv/recv_fpga_2.bmp",recv_image,param);
+  cv::imwrite("/home/tmitsuhashi/bin/opencv/recv_fpga_4.bmp",recv_image,param);
 
   close(sock);
   exit(0);
@@ -272,7 +273,7 @@ void* Recv(void* argc){
 
   fromSize = sizeof(fromAddr);
 
-  for(i=0;i<20;i++){
+  for(i=0;i<320;i++){
     if((respStringLen = recvfrom(sock, echoBuffer+i*1000, 1000, 0,
 	     (struct sockaddr *)&fromAddr, &fromSize)) != 1000)
       DieWithError("recvfrom() failed");
