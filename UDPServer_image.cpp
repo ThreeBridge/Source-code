@@ -11,7 +11,7 @@
 #include <opencv2/opencv.hpp>
 #include <time.h>
 
-#define ECHOMAX 60000       // エコー文字列の最大値
+#define ECHOMAX 320000       // エコー文字列の最大値
 
 void DieWithError(char *errorMessage);
 void Show_Time(struct timespec, struct timespec, struct timespec, struct timespec);
@@ -27,6 +27,7 @@ int main(int argc, char *argv[]){
 	int recvMsgSize;
 	int i,j;
 	int count;
+	int num_of_packet = 320;
 	std::vector<int> param = std::vector<int>(2);
 
         struct timespec startTime_r, endTime_r, startTime_c, endTime_c;
@@ -50,11 +51,11 @@ int main(int argc, char *argv[]){
 	  DieWithError("bind() failed");
 
 	cv::Mat image;
-	image.create(100,100,CV_8UC1);
+	image.create(400,800,CV_8UC1);
 	
 	for (;;){
 	  cliAddrLen = sizeof(echoClntAddr);
-	  for(i=0;i<10;i++){
+	  for(i=0;i<num_of_packet;i++){
 	    if((recvMsgSize = recvfrom(sock, echoBuffer+i*1000, 1000, 0,
 				       (struct sockaddr *) &echoClntAddr, &cliAddrLen)) < 0){
 	      //NULL,NULL)) < 0)
@@ -71,8 +72,8 @@ int main(int argc, char *argv[]){
 	  //cv::Mat image;
 	  //image.create(100,100,CV_8UC1);
 	  count = 0;
-	  for(j=0;j<100;j++){
-	    for(i=0;i<100;i++){
+	  for(j=0;j<400;j++){
+	    for(i=0;i<800;i++){
 	      image.data[count] = ~echoBuffer[count];
 	      count++;
 	    }
@@ -100,7 +101,7 @@ int main(int argc, char *argv[]){
 	    }
 	  }
 	  */
-	  for(i=0;i<10;i++){
+	  for(i=0;i<num_of_packet;i++){
 	    if(sendto(sock, &image.data[i*1000], 1000, 0,
 		    (struct sockaddr *)&echoClntAddr, sizeof(echoClntAddr)) != recvMsgSize)
 	      DieWithError("sendto() sent a different number of bytes than expected");
