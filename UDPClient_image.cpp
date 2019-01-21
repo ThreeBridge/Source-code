@@ -36,7 +36,7 @@ int main(int argc, char *argv[]){
   //unsigned int fromSize;             // recvfrom()のアドレスの入出力サイズ
   char *servIP0;                      // サーバのIPアドレス
   char *servIP1;
-  int waitsec = 15.0;                // =15.0us=0.001ms
+  int waitsec = 0.0;                // =15.0us=0.001ms
   int num_of_tx = 160;
   
   //std::vector<unsigned char> i_imageBuffer;             // エコーサーバへ送信する画像データ
@@ -58,8 +58,8 @@ int main(int argc, char *argv[]){
   
   servIP0 = argv[1];      // 1つ目の引数 : サーバのIPアドレス(ドット10進表記)
   servIP1 = argv[2];      // add 2018.12.5
-  printf("宛先IPアドレス0 : %s\n",servIP0);
-  printf("宛先IPアドレス1 : %s\n",servIP1);
+  //printf("宛先IPアドレス0 : %s\n",servIP0);
+  //printf("宛先IPアドレス1 : %s\n",servIP1);
 
   if(argc == 4)
     echoServPort = atoi(argv[3]);  // 指定のポート番号があれば使用
@@ -86,23 +86,6 @@ int main(int argc, char *argv[]){
   //printf("%s\n",image.row(0));
 
 
-  /*---メモリバッファに画像を書き出す---*/
-  /*
-  param[0]=cv::IMWRITE_PXM_BINARY;
-  param[1]=0;
-  imencode(".bmp", image, i_imageBuffer, param);
-  */
-  /*------*/
-  /*
-  printf("%d\n",i_imageBuffer.size());
-  imageBuffer = (unsigned char*)malloc(i_imageBuffer.size());
-  for(i=0;i<i_imageBuffer.size();i++) imageBuffer = i_imageBuffer[i];
-  */
-  /*
-  printf("データサイズ   : %d\n",sizeof(imageBuffer));
-  for(i=0;i<sizeof(imageBuffer);i++) printf("%d ",imageBuffer[i]);
-  //printf("%s\n",imageBuffer);
-  */
 
   /*---UDPデータグラムソケットの作成---*/
   if((sock=socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
@@ -138,14 +121,6 @@ int main(int argc, char *argv[]){
     echoBuffer[i] = 255;
   }
 
-
-  //usleep(1000);
-  /*del(0)
-  clock_gettime(CLOCK_MONOTONIC_RAW, &endTime_r);
-  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endTime_c);
-  Show_Time(startTime_r, endTime_r, startTime_c, endTime_c);
-  */
-
   /*---マルチスレッド化---*/
   pthread_t thread;
   pthread_create(&thread,NULL,Recv,(void *)NULL);
@@ -158,24 +133,8 @@ int main(int argc, char *argv[]){
     if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr[0],
 	      sizeof(echoServAddr[0])) != 1000)
 	DieWithError("sendto() sent a different number of bytes than expected");
-    usleep(waitsec);
+    //usleep(waitsec);
   }
-
-  // add 2018.12.6
-  //fromSize = sizeof(fromAddr);
-
-  /*---1つ目の応答---*/
-  /*
-  for(i=0;i<num_of_tx;i++){
-    if((respStringLen = recvfrom(sock, echoBuffer+i*1000, 1000, 0,
-	     (struct sockaddr *)&fromAddr, &fromSize)) != 1000)
-      DieWithError("recvfrom() failed");
-  }
-  if(echoServAddr[0].sin_addr.s_addr != fromAddr.sin_addr.s_addr){
-    fprintf(stderr,"Error : received a packet from unknown source.\n");
-    exit(1);
-  }
-  */
 
   /*---2つ目---*/
   
@@ -183,36 +142,14 @@ int main(int argc, char *argv[]){
     if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr[1],
 	      sizeof(echoServAddr[1])) != 1000)
 	DieWithError("sendto() sent a different number of bytes than expected");
-    usleep(waitsec);
+    //usleep(waitsec);
   }
-  
-  
-  /*---2つ目の応答---*/
-  /*
-  for(i=10;i<num_of_tx+10;i++){
-    if((respStringLen = recvfrom(sock, echoBuffer+i*1000, 1000, 0,
-	     (struct sockaddr *)&fromAddr, &fromSize)) != 1000)
-      DieWithError("recvfrom() failed");
-  }
-  */
-  /*
-  if(echoServAddr[1].sin_addr.s_addr != fromAddr.sin_addr.s_addr){
-    fprintf(stderr,"Error : received a packet from unknown source.\n");
-    exit(1);
-  }
-  */
 
   pthread_join(thread,NULL);
 
   clock_gettime(CLOCK_MONOTONIC_RAW, &endTime_r);
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endTime_c);
   Show_Time(startTime_r, endTime_r, startTime_c, endTime_c);
-
-  /*---受信データをNULL文字で終端させる---*/
-  /*
-  echoBuffer[respStringLen] = '\0';
-  printf("Received : %s\n",echoBuffer);  // 引数のエコー文字列を表示
-  */
   
   /*--受信データの処理----*/
   cv::Mat recv_image;
@@ -270,10 +207,11 @@ void* Recv(void* argc){
   int respStringLen;
   unsigned int fromSize;
   int i;
+  int recv_cnt=320;
 
   fromSize = sizeof(fromAddr);
 
-  for(i=0;i<320;i++){
+  for(i=0;i<recv_cnt;i++){
     if((respStringLen = recvfrom(sock, echoBuffer+i*1000, 1000, 0,
 	     (struct sockaddr *)&fromAddr, &fromSize)) != 1000)
       DieWithError("recvfrom() failed");
