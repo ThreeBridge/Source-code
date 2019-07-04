@@ -1,5 +1,5 @@
 /*---画像データをUDPデータとして送信する---*/
-/*---UDPClient_image_vsFPGAx1.cpp  ---*/
+/*---UDPClient_image_color.cpp  ---*/
 
 /*---includeファイル---*/
 #include <stdio.h>       // printf(),fprintf()
@@ -17,8 +17,8 @@
 #include <pthread.h>
 
 /*---define---*/
-#define ECHOMAX  524288    // エコー文字列の最大値
-#define IMG_SIZE 320000   // 画像のサイズ
+#define ECHOMAX  640*480*3+1    // エコー文字列の最大値
+#define IMG_SIZE 640*480*3+1    // 画像のサイズ
 
 void DieWithError(char *errorMessage);
 void Show_Time(struct timespec, struct timespec, struct timespec, struct timespec);
@@ -39,7 +39,7 @@ int main(int argc, char *argv[]){
   char *servIP0;                      // サーバのIPアドレス
   char *servIP1;
   int waitsec = 0.0;                // FPGA側の改善により遅延なしで送信可
-  int num_of_tx = 160;
+  int num_of_tx = 640;
   
   int echoStringLen;                 // 文字列の長さ
   std::vector<int> param = std::vector<int>(2);
@@ -63,7 +63,7 @@ int main(int argc, char *argv[]){
     echoServPort = 7;  // 7はエコーサービスのwell-knownポート番号
 
   /*---画像の取り込み---*/
-  cv::Mat image = cv::imread("/home/tmitsuhashi/bin/opencv/400x400.bmp",cv::IMREAD_GRAYSCALE);
+  cv::Mat image = cv::imread("/home/tmitsuhashi/bin/opencv/color640x480.bmp",cv::IMREAD_COLOR);
   if(image.empty()){
     std::cout << "read error.\n";
     return -1;
@@ -72,6 +72,16 @@ int main(int argc, char *argv[]){
   high = image.rows;
   width = image.cols;
   datasize = high * width;
+
+  /*---DEBUG---*/
+  /*
+  printf("\n");
+  for (i=0;i<99;i=i+3){
+      printf("B:%d,G:%d,R:%d\n",image.data[i],image.data[i+1],image.data[i+2]);
+  }
+  printf("\n");
+  return 0;
+  */
 
   /*---UDPデータグラムソケットの作成---*/
   if((sock=socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
@@ -98,9 +108,11 @@ int main(int argc, char *argv[]){
 
   /*---1つ目---*/
   for(i=0;i<num_of_tx;i++){
-    if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr[0],
-	      sizeof(echoServAddr[0])) != 1000)
-	DieWithError("sendto() sent a different number of bytes than expected");
+    if(sendto(sock, &image.data[i*480*3], 480*3, 0, (struct sockaddr *)&echoServAddr[0],
+	      sizeof(echoServAddr[0])) != 480*3){
+	        DieWithError("sendto() sent a different number of bytes than expected");
+    }
+    //printf("%d  ",i);
     //usleep(waitsec);
   }
   pthread_join(thread,NULL);
@@ -109,21 +121,37 @@ int main(int argc, char *argv[]){
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &endTime_c);
   Show_Time(startTime_r, endTime_r, startTime_c, endTime_c);
 
-  /*--受信データの処理----*/
+  /*---
+  受信データの処理----*/
   cv::Mat recv_image;
-  recv_image.create(400,400,CV_8UC1);
+  recv_image.create(480,640,CV_8UC3);
   int count;
+  int c;  // チャンネル数
   count = 0;
-  for(j=0;j<400;j++){
-    for(i=0;i<400;i++){
-      recv_image.data[count] = echoBuffer[count];
-      count++;
+  for(j=0;j<480;j++){
+    for(i=0;i<640;i++){
+      for(c=0;c<3;c++){
+        recv_image.data[count+c] = echoBuffer[count+c];
+      }
+      count += 3;
     }
   }
   param[0]=cv::IMWRITE_PXM_BINARY;
   param[1]=1;
-  cv::imwrite("/home/tmitsuhashi/bin/opencv/recv_fpga_3.bmp",recv_image,param);
+  cv::imwrite("/home/tmitsuhashi/bin/opencv/recv_pc_color.bmp",recv_image/*,param*/);
 
+  /* test */
+  /*
+  cv::Mat test_image;
+  test_image.create(480,640,CV_8UC3);
+  for(j=0;j<480;j++){
+    for(i=0;i<640;i++){
+      test_image.data[count] = 255;
+      count++;
+    }
+  }
+  cv::imwrite("/home/tmitsuhashi/bin/opencv/testcolor.bmp",test_image);
+  */
   close(sock);
   
   /*---取得画像表示---*/
@@ -158,14 +186,16 @@ void* Recv(void* argc){
   int respStringLen;
   unsigned int fromSize;
   int i;
-  int recv_cnt=160;
+  int recv_cnt=640;
 
   fromSize = sizeof(fromAddr);
 
   for(i=0;i<recv_cnt;i++){
-    if((respStringLen = recvfrom(sock, echoBuffer+i*1000, 1000, 0,
-	     (struct sockaddr *)&fromAddr, &fromSize)) != 1000)
-      DieWithError("recvfrom() failed");
+    if((respStringLen = recvfrom(sock, echoBuffer+i*480*3, 480*3, 0,
+	     (struct sockaddr *)&fromAddr, &fromSize)) != 480*3){
+          printf("パケット数%d\n",respStringLen);
+          DieWithError("recvfrom() failed");
+       }
   }
 
 }

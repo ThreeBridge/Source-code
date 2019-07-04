@@ -98,7 +98,7 @@ int main(int argc, char *argv[]){
     if(sendto(sock, &image.data[i*1000], 1000, 0, (struct sockaddr *)&echoServAddr[0],
 	      sizeof(echoServAddr[0])) != 1000)
 	DieWithError("sendto() sent a different number of bytes than expected");
-    usleep(waitsec);
+    //usleep(waitsec);
   }
 
   pthread_join(thread,NULL);
@@ -120,7 +120,7 @@ int main(int argc, char *argv[]){
   }
   param[0]=cv::IMWRITE_PXM_BINARY;
   param[1]=1;
-  cv::imwrite("/home/tmitsuhashi/bin/opencv/recv_pc_2.bmp",recv_image,param);
+  cv::imwrite("/home/tmitsuhashi/bin/opencv/recv_pc_4.bmp",recv_image,param);
 
   close(sock);
   exit(0);
@@ -149,10 +149,11 @@ void* Recv(void* argc){
   int respStringLen;
   unsigned int fromSize;
   int i;
+  int recv_cnt=320;
 
   fromSize = sizeof(fromAddr);
 
-  for(i=0;i<320;i++){
+  for(i=0;i<recv_cnt;i++){
     if((respStringLen = recvfrom(sock, echoBuffer+i*1000, 1000, 0,
 	     (struct sockaddr *)&fromAddr, &fromSize)) != 1000)
       DieWithError("recvfrom() failed");
